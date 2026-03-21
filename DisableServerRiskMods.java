@@ -1,8 +1,6 @@
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
@@ -18,174 +16,240 @@ import java.util.zip.ZipFile;
  * 功能：
  * 1. 选择 .minecraft 目录，列出可用版本
  * 2. 扫描对应版本的 mods 文件夹，识别所有 Fabric 模组（通过读取 fabric.mod.json 中的 name 字段）
- * 3. 从同目录下的 disabled-mods.txt 文件中读取风险模组名称列表（第一行为默认 .minecraft 路径）
+ * 3. 从选定的风险配置文件中读取风险模组名称列表（配置文件位于程序目录下的 risk_configs 文件夹）
  * 4. GUI 中显示所有模组，风险模组用红色文字标记，复选框表示当前启用状态
  * 5. 提供“禁用风险模组”按钮一键关闭所有风险模组，以及“应用更改”按钮手动应用复选框状态
- * 6. 配置文件第一行为默认路径，修改路径后自动更新配置文件
+ * 6. 配置项（.minecraft 路径、上次选择版本、当前风险配置文件）保存在 settings.ini 中
  * 7. 鼠标滚轮滚动速度优化（设置 unitIncrement=20）
  */
 public class DisableServerRiskMods extends JFrame {
-    private static final String CONFIG_FILE = "disabled-mods.txt";
+    // 配置文件常量
+    private static final String SETTINGS_FILE = "settings.ini";
+    private static final String RISK_CONFIGS_DIR = "risk_configs";
+    private static final String DEFAULT_RISK_CONFIG = "default.txt";
+
+    // 游戏目录相关常量
     private static final String MODS_DIR_NAME = "mods";
     private static final String VERSIONS_DIR_NAME = "versions";
 
+    // UI 组件
     private JTextField minecraftPathField;
     private JComboBox<String> versionCombo;
+    private JComboBox<String> riskConfigCombo;
     private JPanel modsPanel;
     private JScrollPane scrollPane;
     private JButton applyButton;
     private JButton disableRiskButton;
 
+    // 数据
     private File minecraftDir;
     private File currentModsDir;
     private List<ModInfo> currentMods;
-    private Set<String> riskModNames;      // 从配置文件加载的风险模组名称
-    private String defaultMinecraftPath;   // 从配置文件第一行加载的默认路径
+    private Set<String> riskModNames = new HashSet<>(); // 从当前风险配置文件加载
+
+    // 设置
+    private String minecraftPathSetting = "";
+    private String lastVersionSetting = "";
+    private String currentRiskConfig = DEFAULT_RISK_CONFIG;
 
     public DisableServerRiskMods() {
         setTitle("禁用服务器风险模组");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(600, 500);
+        setSize(650, 500);
         setLocationRelativeTo(null);
 
-        // 加载配置文件（包含路径和风险模组）
-        loadConfig();
+        // 先加载设置和确保目录存在（此时 riskConfigCombo 尚未创建）
+        loadSettings();
+        ensureRiskConfigsDir();
 
-        // 创建主面板
+        // 创建 UI（其中包括 riskConfigCombo）
         JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
         mainPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
-        // 顶部选择面板
         JPanel topPanel = createTopPanel();
         mainPanel.add(topPanel, BorderLayout.NORTH);
 
-        // 中间模组列表（放入滚动面板）
         modsPanel = new JPanel();
         modsPanel.setLayout(new BoxLayout(modsPanel, BoxLayout.Y_AXIS));
         scrollPane = new JScrollPane(modsPanel);
-        // 优化鼠标滚轮滚动速度
         scrollPane.getVerticalScrollBar().setUnitIncrement(20);
         scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         mainPanel.add(scrollPane, BorderLayout.CENTER);
 
-        // 底部按钮面板
         JPanel bottomPanel = createBottomPanel();
         mainPanel.add(bottomPanel, BorderLayout.SOUTH);
 
         add(mainPanel);
+
+        // 现在 riskConfigCombo 已存在，可以安全地刷新列表和加载风险名称
+        refreshRiskConfigList();
+        loadRiskModNames();
 
         // 初始状态
         versionCombo.setEnabled(false);
         applyButton.setEnabled(false);
         disableRiskButton.setEnabled(false);
 
-        // 窗口显示后尝试应用默认路径
-        SwingUtilities.invokeLater(this::applyDefaultPath);
+        // 窗口显示后应用保存的路径和版本
+        SwingUtilities.invokeLater(this::applySavedSettings);
     }
 
     /**
-     * 加载配置文件：第一行为默认路径，其余行为风险模组名称
+     * 加载 settings.ini 中的配置
      */
-    private void loadConfig() {
-        riskModNames = new HashSet<>();
-        defaultMinecraftPath = "";
-        File configFile = new File(CONFIG_FILE);
-        if (!configFile.exists()) {
-            // 创建空文件，不写入任何内容
-            try {
-                configFile.createNewFile();
-                JOptionPane.showMessageDialog(this,
-                        "未找到配置文件，已创建空文件：" + CONFIG_FILE + "\n请编辑该文件，第一行为 .minecraft 路径，后续每行一个风险模组名称（支持#注释）。",
-                        "提示", JOptionPane.INFORMATION_MESSAGE);
+    private void loadSettings() {
+        Properties props = new Properties();
+        File settingsFile = new File(SETTINGS_FILE);
+        if (settingsFile.exists()) {
+            try (FileInputStream fis = new FileInputStream(settingsFile)) {
+                props.load(fis);
+                minecraftPathSetting = props.getProperty("minecraft_path", "");
+                lastVersionSetting = props.getProperty("last_version", "");
+                currentRiskConfig = props.getProperty("risk_config", DEFAULT_RISK_CONFIG);
             } catch (IOException e) {
-                JOptionPane.showMessageDialog(this,
-                        "无法创建配置文件：" + e.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(this, "读取 settings.ini 失败：" + e.getMessage(), "错误",
+                        JOptionPane.ERROR_MESSAGE);
             }
-            return;
-        }
-
-        try (BufferedReader reader = new BufferedReader(new FileReader(configFile))) {
-            String line;
-            boolean firstLine = true;
-            while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                if (firstLine) {
-                    firstLine = false;
-                    // 第一行作为路径，忽略空行和注释
-                    if (!line.isEmpty() && !line.startsWith("#")) {
-                        defaultMinecraftPath = line;
-                    }
-                    continue;
-                }
-                // 剩余行作为风险模组名称，忽略空行和注释
-                if (line.isEmpty() || line.startsWith("#")) {
-                    continue;
-                }
-                riskModNames.add(line);
-            }
-        } catch (IOException e) {
-            JOptionPane.showMessageDialog(this,
-                    "读取配置文件失败：" + e.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+        } else {
+            // 创建默认设置文件
+            saveSettings();
         }
     }
 
     /**
-     * 将新路径更新到配置文件第一行，同时保留原有的风险模组列表
+     * 保存设置到 settings.ini
      */
-    private void updateConfigFileWithPath(String newPath) {
-        File configFile = new File(CONFIG_FILE);
-        List<String> riskLines = new ArrayList<>();
+    private void saveSettings() {
+        Properties props = new Properties();
+        props.setProperty("minecraft_path", minecraftPathSetting);
+        props.setProperty("last_version", lastVersionSetting);
+        props.setProperty("risk_config", currentRiskConfig);
+        try (FileOutputStream fos = new FileOutputStream(SETTINGS_FILE)) {
+            props.store(fos, "禁用服务器风险模组配置文件");
+        } catch (IOException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "保存 settings.ini 失败：" + e.getMessage(), "错误",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
 
-        // 先读取原有风险模组名称（跳过第一行）
-        if (configFile.exists()) {
-            try (BufferedReader reader = new BufferedReader(new FileReader(configFile))) {
-                String line;
-                boolean firstLine = true;
-                while ((line = reader.readLine()) != null) {
-                    if (firstLine) {
-                        firstLine = false;
-                        continue; // 跳过旧路径
-                    }
-                    line = line.trim();
-                    if (!line.isEmpty() && !line.startsWith("#")) {
-                        riskLines.add(line);
-                    }
-                }
+    /**
+     * 确保 risk_configs 目录存在
+     */
+    private void ensureRiskConfigsDir() {
+        File dir = new File(RISK_CONFIGS_DIR);
+        if (!dir.exists()) {
+            if (!dir.mkdirs()) {
+                JOptionPane.showMessageDialog(this, "无法创建风险配置目录：" + RISK_CONFIGS_DIR, "错误", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    /**
+     * 刷新风险配置文件下拉列表
+     */
+    private void refreshRiskConfigList() {
+        if (riskConfigCombo == null)
+            return; // 防御性检查
+        File dir = new File(RISK_CONFIGS_DIR);
+        String[] files = dir.list((d, name) -> name.endsWith(".txt"));
+        riskConfigCombo.removeAllItems();
+        if (files != null && files.length > 0) {
+            for (String file : files) {
+                riskConfigCombo.addItem(file);
+            }
+        } else {
+            createDefaultRiskConfig();
+            riskConfigCombo.addItem(DEFAULT_RISK_CONFIG);
+        }
+        // 尝试选中 currentRiskConfig，若无效则选择第一项
+        if (riskConfigCombo.getItemCount() > 0) {
+            if (currentRiskConfig != null) {
+                riskConfigCombo.setSelectedItem(currentRiskConfig);
+            }
+            if (riskConfigCombo.getSelectedItem() == null) {
+                riskConfigCombo.setSelectedIndex(0);
+                currentRiskConfig = (String) riskConfigCombo.getSelectedItem();
+                saveSettings();
+            }
+        }
+    }
+
+    /**
+     * 创建默认风险配置文件（空文件）
+     */
+    private void createDefaultRiskConfig() {
+        File defaultFile = new File(RISK_CONFIGS_DIR, DEFAULT_RISK_CONFIG);
+        if (!defaultFile.exists()) {
+            try {
+                defaultFile.createNewFile();
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
+    }
 
-        // 写入新配置：第一行为新路径，后面为风险模组名称
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(configFile))) {
-            writer.write(newPath);
-            writer.newLine();
-            for (String risk : riskLines) {
-                writer.write(risk);
-                writer.newLine();
+    /**
+     * 从当前选中的风险配置文件加载风险模组名称
+     */
+    private void loadRiskModNames() {
+        riskModNames.clear();
+        File configFile = new File(RISK_CONFIGS_DIR, currentRiskConfig);
+        if (!configFile.exists()) {
+            createDefaultRiskConfig();
+        }
+        try (BufferedReader reader = new BufferedReader(new FileReader(configFile))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                if (line.isEmpty() || line.startsWith("#"))
+                    continue;
+                riskModNames.add(line);
             }
         } catch (IOException e) {
-            JOptionPane.showMessageDialog(this,
-                    "更新配置文件失败：" + e.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this, "读取风险配置文件失败：" + e.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
         }
     }
 
     /**
-     * 尝试应用默认路径（如果存在且有效）
+     * 切换风险配置文件时调用
      */
-    private void applyDefaultPath() {
-        if (defaultMinecraftPath != null && !defaultMinecraftPath.isEmpty()) {
-            File dir = new File(defaultMinecraftPath);
-            if (dir.exists() && dir.isDirectory()) {
-                minecraftPathField.setText(defaultMinecraftPath);
-                minecraftDir = dir;
-                scanVersions();
+    private void onRiskConfigChanged() {
+        String selected = (String) riskConfigCombo.getSelectedItem();
+        if (selected != null && !selected.equals(currentRiskConfig)) {
+            currentRiskConfig = selected;
+            saveSettings();
+            loadRiskModNames();
+            // 如果已有模组列表，刷新显示以更新颜色
+            if (currentMods != null) {
+                updateModsPanel(currentMods);
             }
         }
     }
 
     /**
-     * 创建顶部面板（选择目录和版本）
+     * 应用保存的设置（路径和版本）
+     */
+    private void applySavedSettings() {
+        if (minecraftPathSetting != null && !minecraftPathSetting.isEmpty()) {
+            File dir = new File(minecraftPathSetting);
+            if (dir.exists() && dir.isDirectory()) {
+                minecraftPathField.setText(minecraftPathSetting);
+                minecraftDir = dir;
+                scanVersions();
+
+                // 尝试恢复上次选择的版本
+                if (lastVersionSetting != null && !lastVersionSetting.isEmpty()) {
+                    versionCombo.setSelectedItem(lastVersionSetting);
+                }
+            }
+        }
+    }
+
+    /**
+     * 创建顶部面板（目录、版本、风险配置）
      */
     private JPanel createTopPanel() {
         JPanel panel = new JPanel(new GridBagLayout());
@@ -225,16 +289,35 @@ public class DisableServerRiskMods extends JFrame {
         gbc.weightx = 0;
         panel.add(new JLabel(""), gbc);
 
-        // 浏览按钮事件
-        browseButton.addActionListener(e -> chooseMinecraftDirectory());
+        // 风险配置文件选择
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        gbc.weightx = 0;
+        panel.add(new JLabel("风险配置:"), gbc);
 
-        // 版本选择事件
+        riskConfigCombo = new JComboBox<>();
+        gbc.gridx = 1;
+        gbc.weightx = 1;
+        panel.add(riskConfigCombo, gbc);
+
+        JButton refreshRiskButton = new JButton("刷新");
+        gbc.gridx = 2;
+        gbc.weightx = 0;
+        panel.add(refreshRiskButton, gbc);
+
+        // 事件绑定
+        browseButton.addActionListener(e -> chooseMinecraftDirectory());
         versionCombo.addActionListener(e -> {
             if (versionCombo.getSelectedItem() != null && minecraftDir != null) {
                 String selectedVersion = (String) versionCombo.getSelectedItem();
+                // 保存选中的版本
+                lastVersionSetting = selectedVersion;
+                saveSettings();
                 determineModsDir(selectedVersion);
             }
         });
+        riskConfigCombo.addActionListener(e -> onRiskConfigChanged());
+        refreshRiskButton.addActionListener(e -> refreshRiskConfigList());
 
         return panel;
     }
@@ -251,7 +334,6 @@ public class DisableServerRiskMods extends JFrame {
         panel.add(disableRiskButton);
         panel.add(applyButton);
 
-        // 禁用风险按钮事件：将所有风险模组的复选框设为未选中并应用
         disableRiskButton.addActionListener(e -> {
             for (Component comp : modsPanel.getComponents()) {
                 if (comp instanceof ModCheckBox) {
@@ -264,7 +346,6 @@ public class DisableServerRiskMods extends JFrame {
             applyChanges();
         });
 
-        // 应用按钮事件
         applyButton.addActionListener(e -> applyChanges());
 
         return panel;
@@ -281,10 +362,8 @@ public class DisableServerRiskMods extends JFrame {
             File selected = chooser.getSelectedFile();
             minecraftPathField.setText(selected.getAbsolutePath());
             minecraftDir = selected;
-            // 更新配置文件中的默认路径
-            updateConfigFileWithPath(selected.getAbsolutePath());
-            // 更新内存中的默认路径
-            defaultMinecraftPath = selected.getAbsolutePath();
+            minecraftPathSetting = selected.getAbsolutePath();
+            saveSettings();
             scanVersions();
         }
     }
@@ -303,7 +382,6 @@ public class DisableServerRiskMods extends JFrame {
                 }
             }
         }
-        // 添加一个“根目录mods”选项，用于没有版本隔离的情况
         versionCombo.addItem("[根目录 mods]");
         versionCombo.setEnabled(versionCombo.getItemCount() > 0);
     }
@@ -312,17 +390,17 @@ public class DisableServerRiskMods extends JFrame {
      * 根据所选版本确定 mods 文件夹路径
      */
     private void determineModsDir(String selectedVersion) {
-        if (minecraftDir == null) return;
+        if (minecraftDir == null)
+            return;
 
         if ("[根目录 mods]".equals(selectedVersion)) {
             currentModsDir = new File(minecraftDir, MODS_DIR_NAME);
         } else {
-            // 先检查 versions/<version>/mods
-            File versionMods = new File(minecraftDir, VERSIONS_DIR_NAME + File.separator + selectedVersion + File.separator + MODS_DIR_NAME);
+            File versionMods = new File(minecraftDir,
+                    VERSIONS_DIR_NAME + File.separator + selectedVersion + File.separator + MODS_DIR_NAME);
             if (versionMods.exists() && versionMods.isDirectory()) {
                 currentModsDir = versionMods;
             } else {
-                // 回退到根目录 mods
                 currentModsDir = new File(minecraftDir, MODS_DIR_NAME);
             }
         }
@@ -336,7 +414,6 @@ public class DisableServerRiskMods extends JFrame {
             return;
         }
 
-        // 开始扫描模组
         scanModsInBackground();
     }
 
@@ -377,9 +454,9 @@ public class DisableServerRiskMods extends JFrame {
      */
     private List<ModInfo> scanMods(File modsDir) {
         List<ModInfo> mods = new ArrayList<>();
-        File[] files = modsDir.listFiles((dir, name) ->
-                name.endsWith(".jar") || name.endsWith(".jar.disabled"));
-        if (files == null) return mods;
+        File[] files = modsDir.listFiles((dir, name) -> name.endsWith(".jar") || name.endsWith(".jar.disabled"));
+        if (files == null)
+            return mods;
 
         for (File file : files) {
             String name = extractModName(file);
@@ -397,11 +474,12 @@ public class DisableServerRiskMods extends JFrame {
     private String extractModName(File jarFile) {
         try (ZipFile zip = new ZipFile(jarFile)) {
             ZipEntry entry = zip.getEntry("fabric.mod.json");
-            if (entry == null) return null;
+            if (entry == null)
+                return null;
 
             StringBuilder content = new StringBuilder();
             try (InputStream is = zip.getInputStream(entry);
-                 BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(is))) {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     content.append(line);
@@ -497,11 +575,10 @@ public class DisableServerRiskMods extends JFrame {
                         mod.enabled = wantEnabled;
                     } catch (IOException e) {
                         e.printStackTrace();
-                        SwingUtilities.invokeLater(() ->
-                                JOptionPane.showMessageDialog(DisableServerRiskMods.this,
-                                        "重命名失败: " + currentFile.getName() + " -> " + targetFile.getName() + "\n" + e.getMessage(),
-                                        "错误", JOptionPane.ERROR_MESSAGE)
-                        );
+                        SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(DisableServerRiskMods.this,
+                                "重命名失败: " + currentFile.getName() + " -> " + targetFile.getName() + "\n"
+                                        + e.getMessage(),
+                                "错误", JOptionPane.ERROR_MESSAGE));
                     }
                 }
                 return null;
