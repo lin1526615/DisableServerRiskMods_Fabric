@@ -18,7 +18,7 @@ import java.util.zip.ZipFile;
  * 2. 扫描对应版本的 mods 文件夹，识别所有 Fabric 模组（通过读取 fabric.mod.json 中的 name 字段）
  * 3. 从选定的风险配置文件中读取风险模组名称列表（配置文件位于程序目录下的 risk_configs 文件夹）
  * 4. GUI 中显示所有模组，风险模组用红色文字标记，复选框表示当前启用状态
- * 5. 提供“禁用风险模组”按钮一键关闭所有风险模组，以及“应用更改”按钮手动应用复选框状态
+ * 5. 提供“禁用配置的模组项”按钮一键关闭所有风险模组并自动应用，以及“应用更改”按钮手动应用复选框状态
  * 6. 配置项（.minecraft 路径、上次选择版本、当前风险配置文件）保存在 settings.ini 中
  * 7. 鼠标滚轮滚动速度优化（设置 unitIncrement=20）
  */
@@ -51,6 +51,9 @@ public class DisableServerRiskMods extends JFrame {
     private String minecraftPathSetting = "";
     private String lastVersionSetting = "";
     private String currentRiskConfig = DEFAULT_RISK_CONFIG;
+
+    // 未应用更改标记
+    private boolean hasUnsavedChanges = false;
 
     public DisableServerRiskMods() {
         setTitle("禁用服务器风险模组");
@@ -317,7 +320,15 @@ public class DisableServerRiskMods extends JFrame {
             }
         });
         riskConfigCombo.addActionListener(e -> onRiskConfigChanged());
-        refreshRiskButton.addActionListener(e -> refreshRiskConfigList());
+        // 刷新按钮：先刷新配置列表，再加载风险名称，最后重新扫描模组
+        refreshRiskButton.addActionListener(e -> {
+            refreshRiskConfigList();
+            loadRiskModNames();
+            String selectedVersion = (String) versionCombo.getSelectedItem();
+            if (selectedVersion != null && minecraftDir != null) {
+                determineModsDir(selectedVersion);
+            }
+        });
 
         return panel;
     }
@@ -328,24 +339,32 @@ public class DisableServerRiskMods extends JFrame {
     private JPanel createBottomPanel() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
 
-        disableRiskButton = new JButton("禁用风险模组");
+        disableRiskButton = new JButton("禁用配置的模组项");
         applyButton = new JButton("应用更改");
 
         panel.add(disableRiskButton);
         panel.add(applyButton);
 
+        // “禁用配置的模组项”按钮：直接禁用风险模组并自动应用
         disableRiskButton.addActionListener(e -> {
+            // 获取当前所有复选框
+            java.util.List<ModCheckBox> boxes = new ArrayList<>();
             for (Component comp : modsPanel.getComponents()) {
                 if (comp instanceof ModCheckBox) {
-                    ModCheckBox checkBox = (ModCheckBox) comp;
-                    if (riskModNames.contains(checkBox.modInfo.name)) {
-                        checkBox.setSelected(false);
-                    }
+                    boxes.add((ModCheckBox) comp);
                 }
             }
+            // 将风险模组的复选框设置为未选中（会触发监听器，使应用按钮启用）
+            for (ModCheckBox box : boxes) {
+                if (riskModNames.contains(box.modInfo.name)) {
+                    box.setSelected(false);
+                }
+            }
+            // 直接应用更改（内部会重新扫描，最终禁用应用按钮）
             applyChanges();
         });
 
+        // “应用更改”按钮：手动应用当前复选框状态
         applyButton.addActionListener(e -> applyChanges());
 
         return panel;
@@ -436,7 +455,7 @@ public class DisableServerRiskMods extends JFrame {
                 try {
                     currentMods = get();
                     updateModsPanel(currentMods);
-                    applyButton.setEnabled(true);
+                    applyButton.setEnabled(false);   // 新面板无未应用更改
                     disableRiskButton.setEnabled(true);
                 } catch (InterruptedException | ExecutionException e) {
                     JOptionPane.showMessageDialog(DisableServerRiskMods.this,
@@ -498,10 +517,13 @@ public class DisableServerRiskMods extends JFrame {
     }
 
     /**
-     * 更新界面上的模组复选框列表
+     * 更新界面上的模组复选框列表，并为每个复选框添加状态监听器
      */
     private void updateModsPanel(List<ModInfo> mods) {
         modsPanel.removeAll();
+        // 记录初始选中状态
+        Map<ModCheckBox, Boolean> initialStates = new HashMap<>();
+
         for (ModInfo mod : mods) {
             ModCheckBox checkBox = new ModCheckBox(mod);
             checkBox.setSelected(mod.enabled);
@@ -512,13 +534,31 @@ public class DisableServerRiskMods extends JFrame {
             }
             checkBox.setAlignmentX(Component.LEFT_ALIGNMENT);
             modsPanel.add(checkBox);
+            initialStates.put(checkBox, mod.enabled);
         }
+
+        // 为每个复选框添加监听器，更新“应用更改”按钮状态
+        for (ModCheckBox box : initialStates.keySet()) {
+            box.addItemListener(e -> {
+                // 检查是否有任何复选框状态与初始状态不同
+                boolean changed = false;
+                for (ModCheckBox cb : initialStates.keySet()) {
+                    if (cb.isSelected() != initialStates.get(cb)) {
+                        changed = true;
+                        break;
+                    }
+                }
+                hasUnsavedChanges = changed;
+                applyButton.setEnabled(hasUnsavedChanges);
+            });
+        }
+
         modsPanel.revalidate();
         modsPanel.repaint();
     }
 
     /**
-     * 应用当前复选框状态
+     * 应用当前复选框状态（重命名文件）
      */
     private void applyChanges() {
         setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
@@ -586,6 +626,7 @@ public class DisableServerRiskMods extends JFrame {
 
             @Override
             protected void done() {
+                // 应用完成后重新扫描模组，刷新显示，此时 hasUnsavedChanges 会被重置为 false
                 scanModsInBackground();
             }
         };
