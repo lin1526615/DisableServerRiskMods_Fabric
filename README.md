@@ -81,7 +81,8 @@ Build.bat
 ```
 2. Run:
 ```bash
-java -jar ./.Build_class/DisableServerRiskMods.jar
+move .Build_class/DisableServerRiskMods.jar .
+java -jar DisableServerRiskMods.jar
 ```
 
 ## License

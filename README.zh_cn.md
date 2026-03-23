@@ -21,7 +21,7 @@
 **示例**：
 ```txt
 # 风险模组列表
-Xaero的小地图
+Xaero's Minimap
 Inventory HUD+
 Tweakeroo
 ```
@@ -81,7 +81,8 @@ Build.bat
 ```
 2. 运行：
 ```bash
-java -jar ./.Build_class/DisableServerRiskMods.jar
+move .Build_class/DisableServerRiskMods.jar .
+java -jar DisableServerRiskMods.jar
 ```
 
 ## 许可证
@@ -95,4 +96,3 @@ java -jar ./.Build_class/DisableServerRiskMods.jar
 ---
 
 **Happy Minecrafting!**
-按中文版修改英文版，另外为改为两个不同语言的md文件提供一些教程
