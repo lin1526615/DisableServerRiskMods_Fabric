@@ -1,0 +1,21 @@
+{
+  "title": "Disable Server Risk Mods",
+  "label_minecraft_dir": ".minecraft directory:",
+  "button_browse": "Browse",
+  "label_version": "Version:",
+  "label_risk_config": "Risk Config:",
+  "button_refresh_risk": "Refresh",
+  "button_disable_risk": "Disable Configured Risk Mods",
+  "button_enable_risk": "Enable Configured Risk Mods",
+  "button_apply": "Apply Changes",
+  "message_mods_folder_not_exist": "Mods folder does not exist: %s",
+  "message_error_reading_settings": "Failed to read settings.ini: %s",
+  "message_error_saving_settings": "Failed to save settings.ini: %s",
+  "message_cannot_create_risk_dir": "Cannot create risk config directory: %s",
+  "message_error_reading_risk_config": "Failed to read risk config file: %s",
+  "message_scan_mods_failed": "Failed to scan mods: %s",
+  "message_rename_failed": "Rename failed: %s -> %s\n%s",
+  "message_choose_minecraft": "Select .minecraft directory",
+  "message_risk_config_file": "Risk configuration file",
+  "message_no_risk_mods": "No risk mods are installed for the current version."
+}

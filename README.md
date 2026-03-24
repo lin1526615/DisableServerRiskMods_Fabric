@@ -1,98 +1,84 @@
 # Disable Server Risk Mods
 
-A Java Swing GUI tool for Minecraft players to quickly disable mods that might be rejected by server anti-cheat systems. It enables/disables mods by renaming files (appending `.disabled`), which is safe and reversible—no files are deleted.
+A Java Swing GUI tool designed for Minecraft players to quickly disable risk mods that may be rejected by server anti-cheat systems. Mods are enabled/disabled by renaming files (adding a `.disabled` suffix), which is safe and reversible without deleting files.
 
-> **Note**: This code is generated based on conversations with DeepSeek.
+> **Note**: This code was generated with the help of DeepSeek.
 
-> **UI Language**: Currently, the user interface is only available in **Chinese** (Simplified). English UI may be added in future versions.
+> **Interface Language**: The UI currently supports **English** and **Simplified Chinese**. To switch the interface language, modify the `language` option in `DSRMdata/settings.ini`. For English, set `language=DSRMdata/en.json`; for Chinese, set `language=DSRMdata/zh-cn.json`.
 
-# Other Languages
+## Other Languages
 
-1. [中文](README.zh_cn.md)
+1. [简体中文](README.zh_cn.md)
 
-## Configuration Files
+## Configuration File Description
 
-All risk mod configurations are stored in the **`risk_configs`** folder, which is automatically created in the same directory as the program JAR. You can create multiple `.txt` files, each containing a list of mod names to disable. The program remembers the last used configuration file via `settings.ini`.
+All risk mod configurations are stored in the **`risk_configs`** folder located in the same directory as the program JAR. This folder is automatically created when the program starts. You can create multiple `.txt` files, each containing one mod name per line. The program remembers the last used configuration file (saved in `settings.ini`).
 
 **Configuration file format** (e.g., `default.txt`):
 
-- Each line contains the exact **`name`** field from `fabric.mod.json` of a risk mod.
-- Empty lines and lines starting with `#` are ignored.
+- One risk mod **name** per line (the `name` field in `fabric.mod.json`).
+- Blank lines and lines starting with `#` are ignored.
 
 **Example**:
 
 ```txt
-# Risk mods list
+# List of risk mods
 Xaero's Minimap
 Inventory HUD+
 Tweakeroo
 ```
 
-> **Note**: The program will create a `default.txt` file with an empty list if the folder is missing. You should edit it to include the actual mods you need to disable based on your server's rules.
+> **Note**: If the `risk_configs` folder is empty, the program automatically creates an empty `default.txt` file. You need to edit this file according to the actual server rules and add the names of mods that must be disabled.
 
 ## How to Use
 
 1. **Run the program**:
-
    - Ensure Java 8 or higher is installed.
-   - Double‑click the JAR file or run in terminal: `java -jar DisableServerRiskMods.jar`
-2. **First launch**:
-
-   - The program creates the `risk_configs` folder and a `default.txt` file. Edit the file to add risk mod names.
-3. **Select directory and version**:
-
-   - Click "Browse" to choose your `.minecraft` directory (the path is saved in `settings.ini` for next launch).
-   - Choose the Minecraft version from the dropdown. The program will locate the corresponding `mods` folder (preferring the version‑isolated path, falling back to the root `mods` folder).
-4. **View mods list**:
-
-   - All Fabric mods are displayed as checkboxes. A checked box means the mod is currently enabled.
-   - Risk mod names (from the selected configuration) appear in **red**; others are black.
-5. **Disable risk mods**:
-
-   - Click the "禁用配置的模组项" button. All risk mod checkboxes will be unchecked and changes applied immediately. This is equivalent to manually unchecking those boxes and clicking "应用更改".
-6. **Manual adjustments**:
-
-   - Manually check/uncheck mods as desired. The "应用更改" button becomes enabled only when there are unsaved changes. Click it to rename the corresponding files.
-
-- **Refresh**:
-
-   - The "刷新" button updates the risk configuration list, reloads the current configuration, and re‑scans the mods folder. This is useful if you edit the configuration file while the program is running.
-
-- **Effect**:
-
-   - After applying, mod files are renamed: enabled files are `modname.jar`, disabled files are `modname.jar.disabled`.
-   - **You must restart Minecraft** for the changes to take effect.
+   - Double-click the JAR file, or execute `java -jar DisableServerRiskMods.jar` in the terminal.
+2. **Select directory and version**:
+   - Click "Browse" to choose the `.minecraft` directory.
+   - Select the Minecraft version from the dropdown. The program will automatically locate the corresponding `mods` folder.
+3. **View the mod list**:
+   - All Fabric mods are displayed as checkboxes. The checked state indicates whether the mod is enabled.
+   - Risk mod names (based on the currently selected configuration file) are shown in **red**, others in black.
+4. **Disable risk mods**:
+   - Click the "Disable Configured Risk Mods" button to automatically uncheck all risk mod checkboxes and apply the changes immediately.
+5. **Manual adjustments**:
+   - Manually check/uncheck mods you wish to change, then press the "Apply Changes" button.
+6. **Refresh**:
+   - Click the "Refresh" button to reload the list of risk configuration files, re-read the currently selected configuration, rescan the `mods` folder for the current version, and update the mod list and red markings for risk mods. This is useful if you edit a configuration file while the program is running.
+7. **Effect**:
+   - After applying changes, mod files are renamed: enabled mods remain as `modname.jar`, disabled mods become `modname.jar.disabled`.
+   - **Minecraft must be closed** for the changes to take effect.
 
 ## Important Notes
 
-- **Fabric only**: This tool recognizes Fabric mods by reading `fabric.mod.json`. Forge or other mod loaders are not supported.
-- **File renaming**: Disabling/enabling is done by renaming files. No files are deleted. If the target filename already exists (e.g., both `.jar` and `.jar.disabled` exist), the program will first rename the target to a `.bak` backup before moving.
-- **Risk mod names**: Use the exact `name` field from `fabric.mod.json` (case‑sensitive), not the filename. To find it, open the mod JAR with an archive tool and look at `fabric.mod.json`.
-- **Avoid manual editing**: Do not manually rename files in the `mods` folder while the program is running, as it may cause inconsistency.
-- **Multiple versions**: The tool handles each Minecraft version separately; mods for different versions are stored in their respective `mods` folders.
+- **Fabric mods only**: The program obtains mod names by reading `fabric.mod.json`. Forge or other mod loaders are not supported.
+- **File renaming**: Enabling/disabling is done by renaming files; no files are deleted. If the target file already exists (e.g., both `.jar` and `.jar.disabled` exist), the program first renames the target file to a `.bak` backup before performing the move.
+- **Risk mod names**: Use the exact `name` field from `fabric.mod.json` (case‑sensitive), not the filename. You can open a Fabric mod JAR with a compression tool and look for the `"name"` value inside `fabric.mod.json`.
+- **Manual manipulation**: Avoid manually editing files in the `mods` folder to keep the program’s state consistent with the actual file state.
+- **Multiple versions**: Mod names may be the same across different Minecraft versions; the program handles the appropriate `mods` folder based on the selected version.
 
-## Build and Run
+## Build & Run
 
-### Option 1: Compile and run directly (no dependencies)
-
-```bash
-javac DisableServerRiskMods.java
-java DisableServerRiskMods
-```
-
-### Option 2: Package as an executable JAR
-
-1. Compile:
-
-```bash
-Build.bat
-```
-
-2. Run:
-
-```bash
-java -jar DisableServerRiskMods.jar
-```
+1. Clone the source code:
+   ```bash
+   cd your-minecraft-directory
+   git clone https://github.com/lin1526615/DisableServerRiskMods_Fabric.git
+   cd DisableServerRiskMods_Fabric
+   ```
+2. Compile:
+   ```bash
+   Build.bat
+   ```
+3. Run:
+   ```bash
+   :: Move the compiled JAR to the .minecraft directory
+   move DisableServerRiskMods.jar ..
+   :: Copy the DSRMdata folder
+   copy DSRMdata ..
+   java -jar ../DisableServerRiskMods.jar
+   ```
 
 ## License
 
@@ -100,7 +86,7 @@ This project is open‑sourced under the MIT License. See the [LICENSE](LICENSE)
 
 ## Feedback & Contributions
 
-Issues and pull requests are welcome!
+If you have any questions or suggestions, feel free to open an issue or submit a pull request.
 
 ---
 

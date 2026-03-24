@@ -4,9 +4,9 @@
 
 > **说明**：本代码基于与 DeepSeek 的对话生成
 
-> **界面语言**：当前用户界面仅支持**中文**（简体），暂未提供英文界面。
+> **界面语言**：当前用户界面支持 **简体中文** 若没有简体中文界面可尝试将 `DSRMdata/setting.ini`中的 `language` 项改为 `DSRMdata/zh-cn.json`
 
-# 其他语言
+## 其他语言
 
 1. [英文](README.md)
 
@@ -36,21 +36,18 @@ Tweakeroo
 
    - 确保已安装 Java 8 或更高版本。
    - 双击 JAR 文件，或在终端中执行 `java -jar DisableServerRiskMods.jar`。
-2. **首次启动**：
+2. **选择目录与版本**：
 
-   - 程序会自动创建 `risk_configs` 文件夹和 `default.txt` 文件。编辑该文件，填入需要禁用的模组名称。
-3. **选择目录与版本**：
-
-   - 在 GUI 中点击“浏览”选择 `.minecraft` 目录（路径会自动保存到 `settings.ini`，下次启动自动加载）。
-   - 从下拉框选择要管理的 Minecraft 版本。程序会自动定位到对应的 `mods` 文件夹（优先使用版本隔离目录，不存在则回退到根目录 `mods`）。
-4. **查看模组列表**：
+   - 在 GUI 中点击“浏览”选择 `.minecraft` 目录。
+   - 从下拉框选择要管理的 Minecraft 版本。程序会自动定位到对应的 `mods` 文件夹。
+3. **查看模组列表**：
 
    - 所有 Fabric 模组将以复选框形式列出，当前启用状态由复选框勾选表示。
    - 风险模组名称（根据当前选中的配置文件）显示为**红色**，其他为黑色。
-5. **禁用风险模组**：
+4. **禁用风险模组**：
 
-   - 点击“禁用配置的模组项”按钮，所有风险模组的复选框将自动取消勾选，并立即应用更改（相当于手动取消勾选这些复选框后点击“应用更改”）。
-6. **手动调整**：
+   - 点击“禁用配置的模组项”按钮，所有风险模组的复选框将自动取消勾选，并立即应用更改。
+5. **手动调整**：
 
    - 手动勾选/取消勾选需要更改的模组。然后按“应用更改”按钮即可。
 
@@ -72,26 +69,28 @@ Tweakeroo
 
 ## 构建与运行
 
-### 方法一：直接编译运行（无依赖）
+1. 下载源代码：
 
 ```bash
-javac DisableServerRiskMods.java
-java DisableServerRiskMods
+cd 你的.minecraft所在目录
+git clone https://github.com/lin1526615/DisableServerRiskMods_Fabric.git
+cd DisableServerRiskMods_Fabric
 ```
 
-### 方法二：打包为可执行 JAR
-
-1. 编译：
+2. 编译：
 
 ```bash
 Build.bat
 ```
 
-2. 运行：
+3. 运行：
 
 ```bash
-move Build_class/DisableServerRiskMods.jar .
-java -jar DisableServerRiskMods.jar
+:: 将编译后的 JAR 移动到 .Minecraft 所在目录下
+move DisableServerRiskMods.jar ..
+:: 创建 DSRMdata 文件夹
+copy DSRMdata ..
+java -jar ../DisableServerRiskMods.jar
 ```
 
 ## 许可证

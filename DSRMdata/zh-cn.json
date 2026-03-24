@@ -1,0 +1,21 @@
+{
+  "title": "禁用服务器风险模组",
+  "label_minecraft_dir": ".minecraft 目录:",
+  "button_browse": "浏览",
+  "label_version": "版本:",
+  "label_risk_config": "风险配置:",
+  "button_refresh_risk": "刷新",
+  "button_disable_risk": "禁用配置的模组项",
+  "button_enable_risk": "启用配置的模组项",
+  "button_apply": "应用更改",
+  "message_mods_folder_not_exist": "mods 文件夹不存在: %s",
+  "message_error_reading_settings": "读取 settings.ini 失败：%s",
+  "message_error_saving_settings": "保存 settings.ini 失败：%s",
+  "message_cannot_create_risk_dir": "无法创建风险配置目录：%s",
+  "message_error_reading_risk_config": "读取风险配置文件失败：%s",
+  "message_scan_mods_failed": "扫描模组失败: %s",
+  "message_rename_failed": "重命名失败: %s -> %s\n%s",
+  "message_choose_minecraft": "选择 .minecraft 目录",
+  "message_risk_config_file": "风险配置文件",
+  "message_no_risk_mods": "当前版本未安装任何风险模组。"
+}
